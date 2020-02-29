@@ -101,7 +101,7 @@ public class Main extends Activity {
         if (checkNetwork()) {
             Log.d(TAG, "onCreate() intent="+ getIntent().toString());
             setCache();
-            getHsList(savedInstanceState);
+            getHsList();
             showHsInfo(getIntent());
         } else {
             showError(getString(R.string.error_title) + getString(R.string.error_network_title),
@@ -294,7 +294,7 @@ public class Main extends Activity {
         }
     }
 
-    private void getHsList(Bundle savedInstanceState) {
+    private void getHsList() {
         final Bundle data = (Bundle) getLastNonConfigurationInstance();
         if (data == null) {
             Log.d(TAG, "getHsList(fresh data)");

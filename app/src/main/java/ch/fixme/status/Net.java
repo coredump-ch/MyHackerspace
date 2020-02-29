@@ -18,108 +18,64 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
-// From CommonsWare and Android Blog
-// https://github.com/commonsguy/cw-android/tree/master/Internet
-// http://android-developers.blogspot.ch/2010/07/multithreading-for-performance.html
-public class Net {
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
 
+public class Net {
     private final String USERAGENT = "Android/" + Build.VERSION.RELEASE + " ("
             + Build.MODEL + ") MyHackerspace/" + BuildConfig.VERSION_NAME;
 
     private static final String TAG = "MyHackerspace_Net";
 
-    private HttpURLConnection mUrlConnection;
-    private InputStream mInputStream;
+    private OkHttpClient mClient;
+    private Response mResponse;
 
     public Net(String urlStr) throws Throwable {
         this(urlStr, true);
     }
 
     public Net(String urlStr, boolean useCache) throws Throwable {
+        // Create new client
+        mClient = new OkHttpClient();
+
         // Connect to URL
-        URL url;
-        int responseCode;
-        int redirect_limt = 10;
-        do {
-            Log.v(TAG, "fetching " + urlStr);
-            url = new URL(urlStr);
-            mUrlConnection = (HttpURLConnection) url.openConnection();
-            mUrlConnection.setRequestProperty("User-Agent", USERAGENT);
-            mUrlConnection.setUseCaches(useCache);
+        final Request request = new Request.Builder()
+                .url(urlStr)
+                .addHeader("user-agent", USERAGENT)
+                .build();
+        mResponse = mClient.newCall(request).execute();
 
-            mUrlConnection.connect();
-            responseCode = mUrlConnection.getResponseCode();
-
-            // HttpsURLConnection does not support redirect with protocol switch,
-            // so we take care of that here:
-            if(responseCode == HttpURLConnection.HTTP_MOVED_TEMP
-            || responseCode == HttpURLConnection.HTTP_MOVED_PERM) {
-                urlStr = mUrlConnection.getHeaderField("Location");
-                redirect_limt -= 1;
-            } else {
-                break;
-            }
-        } while(redirect_limt > 0);
-
-        if (responseCode != HttpURLConnection.HTTP_OK) {
-            String msg = mUrlConnection.getResponseMessage();
-            mUrlConnection.disconnect();
-            throw new Throwable(msg);
+        // Ensure success
+        if (!mResponse.isSuccessful()) {
+            mResponse.close();
+            throw new Throwable(mResponse.message());
         }
-
-        mInputStream = mUrlConnection.getInputStream();
     }
 
     public String getString() throws Throwable {
-        try {
-            BufferedReader r = new BufferedReader(new InputStreamReader(mInputStream));
-            StringBuilder str = new StringBuilder();
-            String line;
-            while ((line = r.readLine()) != null) {
-                str.append(line);
+        String value = "";
+        if (mResponse != null) {
+            final ResponseBody body = mResponse.body();
+            if (body != null) {
+                value = body.string();
             }
-            return str.toString();
-        } finally {
-            if (mInputStream != null) {
-                mInputStream.close();
-            }
-            mUrlConnection.disconnect();
+            mResponse.close();
         }
+        return value;
     }
 
     public Bitmap getBitmap() throws Throwable {
-        try {
-            return BitmapFactory.decodeStream(new FlushedInputStream(mInputStream));
-        } finally {
-            if (mInputStream != null) {
-                mInputStream.close();
+        if (mResponse != null) {
+            final ResponseBody body = mResponse.body();
+            if (body != null) {
+                final Bitmap bitmap = BitmapFactory.decodeStream(body.byteStream());
+                mResponse.close();
+                return bitmap;
             }
-            mUrlConnection.disconnect();
+            mResponse.close();
         }
+        return null;
     }
-
-    static class FlushedInputStream extends FilterInputStream {
-        public FlushedInputStream(InputStream inputStream) {
-            super(inputStream);
-        }
-
-        @Override
-        public long skip(long n) throws IOException {
-            long totalBytesSkipped = 0L;
-            while (totalBytesSkipped < n) {
-                long bytesSkipped = in.skip(n - totalBytesSkipped);
-                if (bytesSkipped == 0L) {
-                    int b = read();
-                    if (b < 0) {
-                        break; // we reached EOF
-                    } else {
-                        bytesSkipped = 1; // we read one byte
-                    }
-                }
-                totalBytesSkipped += bytesSkipped;
-            }
-            return totalBytesSkipped;
-        }
-    }
-
 }

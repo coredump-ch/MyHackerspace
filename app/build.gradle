@@ -21,4 +21,7 @@ android {
 }
 
 dependencies {
+    // Required to support IPv4/6 dual stack setups on older Android versions,
+    // see https://github.com/fixme-lausanne/MyHackerspace/issues/76
+    implementation("com.squareup.okhttp3:okhttp:4.4.0")
 }
